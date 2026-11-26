@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get the code
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: api/package-lock.json
+
+      - name: Install dependencies
+        working-directory: api
+        run: npm ci
+
+      - name: Build Docker image
+        run: docker build -t devops-demo-api:${{ github.sha }} ./api
+
+      - name: Smoke test the container
+        run: |
+          docker run -d --name api -p 3000:3000 devops-demo-api:${{ github.sha }}
+          sleep 3
+          curl --fail http://localhost:3000/health
+
+      - name: Show container logs if something failed
+        if: failure()
+        run: docker logs api || true
