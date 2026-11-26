@@ -36,3 +36,26 @@ jobs:
       - name: Show container logs if something failed
         if: failure()
         run: docker logs api || true
+
+  publish:
+    needs: build-and-test
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Get the code
+        uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Build and push image
+        run: |
+          OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          IMAGE=ghcr.io/$OWNER/devops-demo-api
+          docker build -t $IMAGE:${{ github.sha }} -t $IMAGE:latest ./api
+          docker push $IMAGE:${{ github.sha }}
+          docker push $IMAGE:latest
